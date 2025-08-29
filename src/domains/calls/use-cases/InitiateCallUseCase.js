@@ -15,7 +15,7 @@ export class InitiateCallUseCase {
         }
 
         const twilioCaller = new TwilioCaller();
-        const publicUrl = process.env.PUBLIC_URL || 'http://localhost:3000';
+        const publicUrl = process.env.PUBLIC_URL;
         const twimlUrl = `${publicUrl}/api/twiml?callId=temp`; // Pass callId as query for TwiML to use in stream
 
         const call = await twilioCaller.initiateCall({

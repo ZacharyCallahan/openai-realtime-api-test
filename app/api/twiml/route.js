@@ -6,12 +6,13 @@
 export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const callId = searchParams.get('callId');
-    const host = process.env.PUBLIC_URL ? new URL(process.env.PUBLIC_URL).host : request.headers.get('host');
 
+    // Point to the separate WebSocket server
+    const wsHost = process.env.WS_SERVER_URL || 'ws://localhost:8080';
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="wss://${host}/api/stream?callId=${callId || 'temp'}" />
+    <Stream url="${wsHost}?callId=${callId || 'temp'}" />
   </Connect>
 </Response>`;
 
@@ -34,12 +35,13 @@ export async function POST(request) {
 
     const { searchParams } = new URL(request.url);
     const callId = searchParams.get('callId');
-    const host = process.env.PUBLIC_URL ? new URL(process.env.PUBLIC_URL).host : request.headers.get('host');
 
+    // Point to the separate WebSocket server
+    const wsHost = process.env.WS_SERVER_URL || 'ws://localhost:8080';
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="wss://${host}/api/stream?callId=${callId || 'temp'}" />
+    <Stream url="${wsHost}?callId=${callId || 'temp'}" />
   </Connect>
 </Response>`;
 
