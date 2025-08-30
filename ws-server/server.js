@@ -135,24 +135,21 @@ wss.on('connection', (twilioWS, request) => {
                 openaiWS.send(JSON.stringify({
                     type: 'session.update',
                     session: {
-                        modalities: ['text', 'audio'],
+                        type: 'realtime',
+                        model: 'gpt-realtime',
+                        output_modalities: ["text", "audio"],
+                        audio: {
+                            input: {
+                                format: "g711_ulaw",
+                                turn_detection: { type: "semantic_vad", create_response: true }
+                            },
+                            output: {
+                                format: "g711_ulaw",
+                                voice: "shimmer",
+                                speed: 1.0
+                            }
+                        },
                         instructions: instructions,
-                        voice: 'alloy',
-                        input_audio_format: 'g711_ulaw',
-                        output_audio_format: 'g711_ulaw',
-                        input_audio_transcription: {
-                            model: 'whisper-1'
-                        },
-                        turn_detection: {
-                            type: 'server_vad',
-                            threshold: 0.5,
-                            prefix_padding_ms: 300,
-                            silence_duration_ms: 500
-                        },
-                        tools: [],
-                        tool_choice: 'auto',
-                        temperature: 0.8,
-                        max_response_output_tokens: 4096
                     }
                 }));
 
