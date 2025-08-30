@@ -140,12 +140,12 @@ wss.on('connection', (twilioWS, request) => {
                         output_modalities: ["text", "audio"],
                         audio: {
                             input: {
-                                format: "g711_ulaw",
+                                format: "pcm16",
                                 turn_detection: { type: "semantic_vad", create_response: true }
                             },
                             output: {
-                                format: "g711_ulaw",
-                                voice: "shimmer",
+                                format: "pcm16",
+                                voice: "echo",
                                 speed: 1.0
                             }
                         },
@@ -185,15 +185,23 @@ wss.on('connection', (twilioWS, request) => {
                     const data = JSON.parse(message.toString());
 
                     if (data.type === 'response.audio.delta') {
-                        // Send OpenAI mu-law audio directly to Twilio (no conversion needed)
-                        const audioPayload = data.delta;
-                        if (twilioWS.readyState === WebSocket.OPEN && audioPayload) {
+                        // Convert OpenAI pcm16 24kHz to mu-law 8kHz for Twilio
+                        const pcmBase64 = data.delta;
+                        const pcmBytes = Buffer.from(pcmBase64, 'base64');
+                        const pcm24khz = new Int16Array(pcmBytes.length / 2);
+                        for (let i = 0; i < pcm24khz.length; i++) {
+                            pcm24khz[i] = pcmBytes.readInt16LE(i * 2);
+                        }
+                        const pcm8khz = downsample3x(pcm24khz);
+                        const mulawBytes = encodeMulaw(pcm8khz);
+                        const mulawBase64 = Buffer.from(mulawBytes).toString('base64');
+                        if (twilioWS.readyState === WebSocket.OPEN && mulawBase64) {
                             twilioWS.send(JSON.stringify({
                                 event: 'media',
                                 streamSid,
-                                media: { payload: audioPayload }
+                                media: { payload: mulawBase64 }
                             }));
-                            console.log('🎵 Sending OpenAI mu-law audio directly to Twilio');
+                            console.log('🎵 Sending converted mu-law audio to Twilio');
                         }
                     } else if (data.type === 'response.text.delta') {
                         // Accumulate assistant text for logging
@@ -279,18 +287,27 @@ wss.on('connection', (twilioWS, request) => {
                 }
 
             } else if (data.event === 'media') {
-                // Forward Twilio mu-law audio directly to OpenAI (no conversion needed)
+                // Convert Twilio mu-law 8kHz to pcm16 24kHz for OpenAI
                 if (openaiWS && openaiWS.readyState === WebSocket.OPEN && openaiConnected) {
                     try {
+                        const mulawBase64 = data.media.payload;
+                        const mulawBytes = Buffer.from(mulawBase64, 'base64');
+                        const pcm8khz = decodeMulaw(mulawBytes);
+                        const pcm24khz = upsample3x(pcm8khz);
+                        const audioBuffer = Buffer.alloc(pcm24khz.length * 2);
+                        for (let i = 0; i < pcm24khz.length; i++) {
+                            audioBuffer.writeInt16LE(clip(pcm24khz[i]), i * 2);
+                        }
+                        const pcmBase64 = audioBuffer.toString('base64');
                         openaiWS.send(JSON.stringify({
                             type: 'input_audio_buffer.append',
-                            audio: data.media.payload // Send Twilio's mu-law directly
+                            audio: pcmBase64
                         }));
                         if (Math.random() < 0.1) {
-                            console.log('📡 Forwarding Twilio mu-law audio directly to OpenAI');
+                            console.log('📡 Forwarding converted pcm16 audio to OpenAI');
                         }
                     } catch (error) {
-                        console.error('❌ Error sending audio to OpenAI:', error);
+                        console.error('❌ Error converting/sending audio to OpenAI:', error);
                     }
                 } else if (!openaiConnected) {
                     console.log('⚠️ Received media but OpenAI not connected yet');
