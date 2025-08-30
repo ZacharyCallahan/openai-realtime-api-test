@@ -4,21 +4,21 @@
 // Uses app router (Next.js 15) for simplicity; dynamic with query params.
 
 export async function GET(request) {
-    const { searchParams } = new URL(request.url);
-    const callId = searchParams.get('callId');
+  const { searchParams } = new URL(request.url);
+  const callId = searchParams.get('callId');
 
-    // Point to the separate WebSocket server
-    const wsHost = process.env.WS_SERVER_URL || 'ws://localhost:8080';
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+  // Point to the separate WebSocket server
+  const wsHost = process.env.WS_SERVER_URL || 'wss://localhost:8080';
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
     <Stream url="${wsHost}?callId=${callId || 'temp'}" />
   </Connect>
 </Response>`;
 
-    return new Response(twiml, {
-        headers: { 'Content-Type': 'text/xml' },
-    });
+  return new Response(twiml, {
+    headers: { 'Content-Type': 'text/xml' },
+  });
 }
 
 // app/api/twiml/route.js
@@ -31,21 +31,21 @@ export async function GET(request) {
 // This generates XML telling Twilio to connect to your WS stream.
 
 export async function POST(request) {
-    console.log('TwiML request received', { url: request.url });
+  console.log('TwiML request received', { url: request.url });
 
-    const { searchParams } = new URL(request.url);
-    const callId = searchParams.get('callId');
+  const formData = await request.formData();
+  const callSid = formData.get('CallSid') || 'temp'; // Fallback to temp if not provided
 
-    // Point to the separate WebSocket server
-    const wsHost = process.env.WS_SERVER_URL || 'ws://localhost:8080';
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+  // Point to the separate WebSocket server
+  const wsHost = process.env.WS_SERVER_URL || 'ws://localhost:8080';
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${wsHost}?callId=${callId || 'temp'}" />
+    <Stream url="${wsHost}?callId=${callSid}" />
   </Connect>
 </Response>`;
 
-    return new Response(twiml, {
-        headers: { 'Content-Type': 'text/xml' },
-    });
+  return new Response(twiml, {
+    headers: { 'Content-Type': 'text/xml' },
+  });
 }

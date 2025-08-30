@@ -47,9 +47,10 @@ wss.on('connection', (twilioWS, request) => {
 
         try {
             console.log('🤖 Connecting to OpenAI Realtime API...');
-            openaiWS = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', {
+            openaiWS = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01', {
                 headers: {
                     Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+                    "OpenAI-Beta": "realtime=v1",
                 },
                 timeout: 30000, // 30 second timeout
                 handshakeTimeout: 10000, // 10 second handshake timeout
@@ -64,13 +65,14 @@ wss.on('connection', (twilioWS, request) => {
                 openaiWS.send(JSON.stringify({
                     type: 'session.update',
                     session: {
-                        type: 'realtime',  // Required parameter
-                        model: 'gpt-4o-realtime-preview',  // Correct model
+                        
+                        // type: 'realtime',  // Not needed
+                        model: 'gpt-4o-realtime-preview-2024-10-01',
                         modalities: ['text', 'audio'],
                         instructions: instructions,
                         voice: 'alloy',
-                        input_audio_format: 'pcm16',
-                        output_audio_format: 'pcm16',
+                        input_audio_format: 'g711_ulaw',
+                        output_audio_format: 'g711_ulaw',
                         input_audio_transcription: {
                             model: 'whisper-1'
                         },
@@ -80,10 +82,10 @@ wss.on('connection', (twilioWS, request) => {
                             prefix_padding_ms: 300,
                             silence_duration_ms: 500
                         },
-                        tools: [],
+                        // tools: [],
                         tool_choice: 'auto',
                         temperature: 0.8,
-                        max_response_output_tokens: 4096
+                        // max_response_output_tokens: 4096  // Use 'max_output_tokens' if needed in response
                     }
                 }));
 
@@ -107,10 +109,8 @@ wss.on('connection', (twilioWS, request) => {
                     // Create response after a short delay
                     setTimeout(() => {
                         openaiWS.send(JSON.stringify({
-                            type: 'response.create',
-                            response: {
-                                modalities: ['text', 'audio']
-                            }
+                            type: 'response.create'
+                            // Remove invalid response object
                         }));
                         console.log('🚀 Requested response from OpenAI');
                     }, 500);
@@ -121,36 +121,45 @@ wss.on('connection', (twilioWS, request) => {
                 try {
                     const data = JSON.parse(message.toString());
 
-                    if (data.type === 'response.audio.delta') {
-                        // Send audio back to Twilio
-                        if (twilioWS.readyState === WebSocket.OPEN) {
-                            twilioWS.send(JSON.stringify({
-                                event: 'media',
-                                streamSid,
-                                media: { payload: data.delta }
-                            }));
-                            console.log('🎵 Sending OpenAI audio to Twilio');
-                        }
-                    } else if (data.type === 'response.text.delta') {
-                        // Accumulate assistant text for logging
-                        transcript += data.delta;
-                        console.log('🤖 OpenAI says:', data.delta);
-                    } else if (data.type === 'input_audio_buffer.speech_started') {
-                        console.log('🎤 User started speaking');
-                    } else if (data.type === 'input_audio_buffer.speech_stopped') {
-                        console.log('🔇 User stopped speaking');
-                    } else if (data.type === 'response.audio_transcript.delta') {
-                        // This contains the user's transcribed speech
-                        console.log('👤 User said:', data.delta);
-                    } else if (data.type === 'conversation.item.input_audio_transcription.completed') {
-                        console.log('📝 User transcription completed:', data.transcript);
-                    } else {
-                        // Log unknown event types for debugging
-                        console.log('📨 Unknown OpenAI event:', data.type, JSON.stringify(data).substring(0, 200));
+                    switch (data.type) {
+                        case 'session.created':
+                            console.log('✅ Session created:', data.session.id);
+                            break;
+                        case 'response.audio.delta':
+                            // Existing handling
+                            if (twilioWS.readyState === WebSocket.OPEN) {
+                                twilioWS.send(JSON.stringify({
+                                    event: 'media',
+                                    streamSid,
+                                    media: { payload: data.delta }
+                                }));
+                                console.log('🎵 Sending OpenAI audio to Twilio');
+                            }
+                            break;
+                        case 'response.text.delta':
+                            transcript += data.delta;
+                            console.log('🤖 OpenAI text:', data.delta);
+                            break;
+                        case 'response.audio_transcript.delta':
+                            console.log('👤 User transcript delta:', data.delta);
+                            break;
+                        case 'response.done':
+                            console.log('✅ Response completed');
+                            break;
+                        case 'conversation.item.created':
+                            console.log('📝 Conversation item created:', data.item.id);
+                            break;
+                        case 'input_audio_buffer.committed':
+                            console.log('🎤 Audio buffer committed');
+                            break;
+                        case 'error':
+                            console.error('❌ OpenAI error:', data.error);
+                            break;
+                        default:
+                            console.log('📨 Unhandled OpenAI event:', data.type, JSON.stringify(data).substring(0, 200));
                     }
                 } catch (error) {
                     console.error('❌ Error processing OpenAI message:', error);
-                    console.error('❌ Raw message:', message.toString());
                 }
             });
 
