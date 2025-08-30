@@ -5,14 +5,14 @@
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const callId = searchParams.get('callId');
+  const callId = searchParams.get('callId') || 'unknown';
 
   // Point to the separate WebSocket server
   const wsHost = process.env.WS_SERVER_URL || 'wss://localhost:8080';
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${wsHost}?callId=${callId || 'temp'}" />
+    <Stream url="${wsHost}?callId=${callId}" />
   </Connect>
 </Response>`;
 
@@ -33,8 +33,8 @@ export async function GET(request) {
 export async function POST(request) {
   console.log('TwiML request received', { url: request.url });
 
-  const formData = await request.formData();
-  const callId = formData.get('CallSid') || 'unknown';
+  const { searchParams } = new URL(request.url);
+  const callId = searchParams.get('callId') || 'unknown';
 
   // Point to the separate WebSocket server
   const wsHost = process.env.WS_SERVER_URL || 'ws://localhost:8080';

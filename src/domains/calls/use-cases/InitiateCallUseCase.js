@@ -3,6 +3,7 @@
 // Validates input, calls Twilio via infrastructure, returns result.
 // (Similar to a service method, but focused on one flow; no direct DB here yet).
 
+import { v4 as uuidv4 } from 'uuid';
 import { TwilioCaller } from '../../../infrastructure/twilio/TwilioCaller';
 import { InitiateCallSchema } from '../dtos/InitiateCallDTO';
 
@@ -16,7 +17,8 @@ export class InitiateCallUseCase {
 
         const twilioCaller = new TwilioCaller();
         const publicUrl = process.env.PUBLIC_URL;
-        const twimlUrl = `${publicUrl}/api/twiml?callId=temp`; // Pass callId as query for TwiML to use in stream
+        const callId = uuidv4();
+        const twimlUrl = `${publicUrl}/api/twiml?callId=${callId}`; // Pass callId as query for TwiML to use in stream
 
         const call = await twilioCaller.initiateCall({
             from: process.env.TWILIO_PHONE_NUMBER,
